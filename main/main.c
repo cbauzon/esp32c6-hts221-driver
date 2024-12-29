@@ -1,19 +1,21 @@
 #include <stdio.h>
 #include "driver/i2c_master.h"
 #include "main.h"
+#include "esp_heap_trace.h"
+#include "esp_log.h"
 
 void print_back(uint8_t addr, uint8_t data, rw read_or_write) {
     switch(read_or_write) {
         case READ:
-            printf("(RD) Read data from 0x%02x: 0x%02x!\n", addr, data);
+            ESP_LOGI("RD","Read data from 0x%02x: 0x%02x!", addr, data);
             break;
         
         case WRITE:
-            printf("(WR) Successfully wrote 0x%02x to address 0x%02x!\n", addr, data);
+            ESP_LOGI("WR", "Successfully wrote 0x%02x to address 0x%02x!", addr, data);
             break;
         
         default:
-            printf("(ERR) Error!");
+            ESP_LOGE("print_back", "Error!");
     }
 }
 
@@ -35,7 +37,7 @@ uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t 
             return NULL;
         }
     } else {
-        printf("Failed to read from %02x!", subaddr);
+        ESP_LOGE("read_reg", "Failed to read from %02x!", subaddr);
     }
     free(data_rd);
     return NULL;
@@ -43,8 +45,7 @@ uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t 
 }
 
 void who_am_i(i2c_master_dev_handle_t dev_handle) {
-    uint8_t who_am_i_reg = 0x0f; 
-    read_reg(dev_handle, who_am_i_reg, 1, 0);
+    read_reg(dev_handle, WHO_AM_I, 1, 0);
 }
 
 void write_reg(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_val) {
@@ -58,7 +59,7 @@ void write_reg(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_v
     if (check == ESP_OK) {
         print_back(subaddr, write_val, WRITE);
     } else {
-        printf("Failed to write to %02x!", subaddr);
+        ESP_LOGE("write_reg", "Failed to write to %02x!", subaddr);
     }
 }
 
@@ -86,21 +87,30 @@ void write_reg_multiple(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_
             print_back(subaddr, write_vals[i], WRITE);
         }
     } else {
-        printf("Failed to write to %02x!", subaddr);
+        ESP_LOGE("write_reg", "Failed to write to %02x!", subaddr);    
     }
         
 }
 
 void get_status(i2c_master_dev_handle_t dev_handle) {
-    uint8_t *data_rd = read_reg(dev_handle, 0x27, 1, 1);
-    if (data_rd != NULL) printf("status data addr: %p, %02x\n", data_rd, *data_rd);
-    else printf("Error reading from 0x27!");
+    uint8_t *data_rd = read_reg(dev_handle, STATUS_REG, 1, 1);
+    if (data_rd != NULL) {
+        ESP_LOGD("get_status", "status data addr: %p, %02x\n", data_rd, *data_rd);
+    } else {
+        ESP_LOGE("get_status", "Error reading from 0x27!");
+    } 
     free(data_rd);
 
 }
 
 void app_main(void)
 {
+    #ifdef CONFIG_HEAP_TRACING_STANDALONE
+    static heap_trace_record_t trace_record[100];
+
+    ESP_ERROR_CHECK(heap_trace_init_standalone(trace_record, 100));
+    ESP_ERROR_CHECK(heap_trace_start(HEAP_TRACE_ALL));
+    #endif
     i2c_master_bus_handle_t i2c_mstr_handle;
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C_MSTR_CFG, &i2c_mstr_handle));
     
@@ -109,11 +119,17 @@ void app_main(void)
 
     who_am_i(dev_handle);
     uint8_t write_vals[2] = {0x83, 0x81};
-    write_reg_multiple(dev_handle, 0x20, write_vals, 2);
-    write_reg(dev_handle, 0x20, 0x83);
-    read_reg(dev_handle, 0x20, 2, 0);
-    read_reg(dev_handle, 0x21, 1, 0);
-    read_reg(dev_handle, 0x22, 1, 0);
+    write_reg_multiple(dev_handle, CTRL_REG1, write_vals, 2);
+    write_reg(dev_handle, CTRL_REG1, 0x83);
+    read_reg(dev_handle, CTRL_REG1, 2, 0);
+    read_reg(dev_handle, CTRL_REG2, 1, 0);
+    read_reg(dev_handle, CTRL_REG3, 1, 0);
     get_status(dev_handle);
-    printf("Done!\n");
+    
+    #ifdef CONFIG_HEAP_TRACING_STANDALONE
+    ESP_ERROR_CHECK(heap_trace_stop());
+    heap_trace_dump();
+    #endif
+    
+    ESP_LOGI("app_main", "Done!");
 }

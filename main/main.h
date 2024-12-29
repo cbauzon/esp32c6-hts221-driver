@@ -3,7 +3,16 @@
 
 #include <stdio.h>
 
-
+#define WHO_AM_I        0x0f
+#define AV_CONF         0x10
+#define CTRL_REG1       0x20
+#define CTRL_REG2       0x21
+#define CTRL_REG3       0x22
+#define STATUS_REG      0x27
+#define HUMIDITY_OUT_L  0x28
+#define HUMIDITY_OUT_H  0x29
+#define TEMP_OUT_L      0x2A
+#define TEMP_OUT_H      0x2B
 
 i2c_master_bus_config_t I2C_MSTR_CFG = {
     .i2c_port = -1,
