@@ -17,8 +17,6 @@ void print_back(uint8_t addr, uint8_t data, rw read_or_write) {
     }
 }
 
-
-
 void read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads) {
     esp_err_t check;
 
@@ -93,8 +91,9 @@ void app_main(void)
     ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_mstr_handle, &DEV_CFG, &dev_handle));
 
     who_am_i(dev_handle);
-    uint8_t write_vals[] = {0x83};
-    write_reg_multiple(dev_handle, 0x20, write_vals, 1);
+    uint8_t write_vals[2] = {0x83, 0x81};
+    write_reg_multiple(dev_handle, 0x20, write_vals, 2);
+    write_reg(dev_handle, 0x20, 0x80);
     read_reg(dev_handle, 0x20, 1);
     printf("Done!\n");
 }

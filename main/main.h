@@ -32,7 +32,8 @@ typedef enum rw {
 void print_back(uint8_t addr, uint8_t data, rw read_or_write);
 void read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads);
 void who_am_i(i2c_master_dev_handle_t dev_handle);
-void write_reg(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_vals[], uint32_t num_writes);
+void write_reg(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_val);
+void write_reg_multiple(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_vals[], uint32_t num_writes);
 void master_init(void);
 
 // typedef struct CTRL_REG1 {
