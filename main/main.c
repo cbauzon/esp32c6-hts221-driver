@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "driver/i2c_master.h"
 #include "main.h"
 #include "esp_heap_trace.h"
@@ -92,25 +93,53 @@ void write_reg_multiple(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_
         
 }
 
-void get_status(i2c_master_dev_handle_t dev_handle) {
+status get_status(i2c_master_dev_handle_t dev_handle) {
+    status res;
     uint8_t *data_rd = read_reg(dev_handle, STATUS_REG, 1, 1);
     if (data_rd != NULL) {
-        ESP_LOGD("get_status", "status data addr: %p, %02x\n", data_rd, *data_rd);
+        ESP_LOGD("get_status", "Status data addr: %p, %02x\n", data_rd, *data_rd);
     } else {
         ESP_LOGE("get_status", "Error reading from 0x27!");
     } 
+
+    res = *data_rd;
+    char *str_out = (char *)malloc(100*sizeof(char));
+
+    switch (res) {
+        case 0x00:
+            strcpy(str_out, "NOT READY!");
+            break;
+        case 0x01:
+            strcpy(str_out, "TEMP READY!");
+            break;
+        case 0x02:
+            strcpy(str_out, "HUMIDITY READY!");
+            break;
+        case 0x03:
+            strcpy(str_out, "BOTH READY!");
+            break;
+
+        default:
+            ESP_LOGE("get_status", "Failed to get status!");
+            break;
+    }
+    
+    ESP_LOGI("get_status", "Status of the device is %s", str_out);
     free(data_rd);
+    free(str_out);
+    return res;
 
 }
 
 void app_main(void)
 {
     #ifdef CONFIG_HEAP_TRACING_STANDALONE
-    static heap_trace_record_t trace_record[100];
+        static heap_trace_record_t trace_record[100];
 
-    ESP_ERROR_CHECK(heap_trace_init_standalone(trace_record, 100));
-    ESP_ERROR_CHECK(heap_trace_start(HEAP_TRACE_ALL));
+        ESP_ERROR_CHECK(heap_trace_init_standalone(trace_record, 100));
+        ESP_ERROR_CHECK(heap_trace_start(HEAP_TRACE_ALL));
     #endif
+
     i2c_master_bus_handle_t i2c_mstr_handle;
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C_MSTR_CFG, &i2c_mstr_handle));
     
@@ -121,14 +150,14 @@ void app_main(void)
     uint8_t write_vals[2] = {0x83, 0x81};
     write_reg_multiple(dev_handle, CTRL_REG1, write_vals, 2);
     write_reg(dev_handle, CTRL_REG1, 0x83);
-    read_reg(dev_handle, CTRL_REG1, 2, 0);
+    read_reg(dev_handle, CTRL_REG1, 1, 0);
     read_reg(dev_handle, CTRL_REG2, 1, 0);
     read_reg(dev_handle, CTRL_REG3, 1, 0);
     get_status(dev_handle);
     
     #ifdef CONFIG_HEAP_TRACING_STANDALONE
-    ESP_ERROR_CHECK(heap_trace_stop());
-    heap_trace_dump();
+        ESP_ERROR_CHECK(heap_trace_stop());
+        heap_trace_dump();
     #endif
     
     ESP_LOGI("app_main", "Done!");

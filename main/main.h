@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 
+#define DEV_ADDR        0x5f
+#define BUS_FREQ        100000
+
 #define WHO_AM_I        0x0f
 #define AV_CONF         0x10
 #define CTRL_REG1       0x20
@@ -26,17 +29,24 @@ i2c_master_bus_config_t I2C_MSTR_CFG = {
 
 i2c_device_config_t DEV_CFG = {
     .dev_addr_length = I2C_ADDR_BIT_7,
-    .device_address = 0x5F,
-    .scl_speed_hz = 100000,
+    .device_address = DEV_ADDR,
+    .scl_speed_hz = BUS_FREQ,
     .scl_wait_us = 0,
     .flags.disable_ack_check = 0
 
 };
 
 typedef enum rw {
-    READ = 0,
-    WRITE = 1
+    READ,
+    WRITE
 } rw;
+
+typedef enum status {
+    NOT_READY,
+    TEMP_READY,
+    HU_READY,
+    BOTH_READY
+} status;
 
 void print_back(uint8_t addr, uint8_t data, rw read_or_write);
 uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads, uint8_t alloc);
