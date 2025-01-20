@@ -48,6 +48,11 @@ typedef enum sensor_status {
     BOTH_READY
 } sensor_status;
 
+typedef struct calibration_temps {
+    float t0_total, t1_total;
+    int16_t t0_out, t1_out, res;
+} calibration_temps;
+
 void print_back(uint8_t addr, uint8_t data, rw read_or_write);
 uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads, bool alloc, bool print);
 void who_am_i(i2c_master_dev_handle_t dev_handle);

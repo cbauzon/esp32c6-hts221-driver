@@ -135,14 +135,12 @@ sensor_status get_status(i2c_master_dev_handle_t dev_handle) {
     return res;
 }
 
-void get_temp(i2c_master_dev_handle_t dev_handle, bool printout) {
+void get_temp_calibration(i2c_master_dev_handle_t dev_handle, calibration_temps *temps, bool printout) {
     uint8_t *t0, *t0_out_l, *t0_out_h, 
             *t1, *t1_out_l, *t1_out_h, 
-            *t_out_l, *t_out_h,
             *msb;
-    float t0_total, t1_total, res_temp;
-    int16_t t0_out, t1_out, t_out;
-    
+    float t0_total, t1_total;
+    int16_t t0_out, t1_out;
 
     t0 = read_reg(dev_handle, 0x32, 1, true, printout);
     t1 = read_reg(dev_handle, 0x33, 1, true, printout);
@@ -151,30 +149,24 @@ void get_temp(i2c_master_dev_handle_t dev_handle, bool printout) {
     // y variables
     t0_total = (float)(((*msb & 0x3) << 8) | *t0) / 8.0;
     ESP_LOGD("get_temp", "t0_total is %0.3f", t0_total);
+    temps->t0_total = t0_total;
 
     t1_total = (float)(((*msb & 0xC) << 6) | *t1) / 8.0;
     ESP_LOGD("get_temp", "t1_total is %0.3f", t1_total);
+    temps->t1_total = t1_total;
 
     // x variables
     t0_out_l = read_reg(dev_handle, 0x3c, 1, true, printout);
     t0_out_h = read_reg(dev_handle, 0x3d, 1, true, printout);
     t0_out = (*t0_out_h << 8) | *t0_out_l;
     ESP_LOGD("get_temp", "t0_out is 0x%04x", t0_out);
+    temps->t0_out = t0_out;
 
     t1_out_l = read_reg(dev_handle, 0x3e, 1, true, printout);
     t1_out_h = read_reg(dev_handle, 0x3f, 1, true, printout);
     t1_out = (*t1_out_h << 8) | *t1_out_l;
     ESP_LOGD("get_temp", "t1_out is 0x%04x", t1_out);
-
-    // get temp reading
-    t_out_l = read_reg(dev_handle, 0x2a, 1, true, printout);
-    t_out_h = read_reg(dev_handle, 0x2b, 1, true, printout);
-    t_out = ((*t_out_h << 8) | *t_out_l);
-    ESP_LOGD("get_temp", "t_out is 0x%04x (unsigned) and 0x%04x (signed)", (uint16_t)t_out, t_out);
-
-    res_temp = (t1_total - t0_total) / (t1_out - t0_out) * (t_out - t0_out) + t0_total;
-    res_temp = (res_temp * 9/5) + 32;
-    ESP_LOGI("get_temp", "Temp was calculated to be %0.2f degrees fahrenheit", res_temp);
+    temps->t1_out = t1_out;
 
     free(t0);
     free(t0_out_l);
@@ -184,10 +176,27 @@ void get_temp(i2c_master_dev_handle_t dev_handle, bool printout) {
     free(t1_out_l);
     free(t1_out_h);
 
+    free(msb);
+}
+
+void get_temp(i2c_master_dev_handle_t dev_handle, calibration_temps *temps, bool printout) {
+    uint8_t *t_out_l, *t_out_h;
+    float res_temp;
+    int16_t t_out;
+
+    // get temp reading
+    t_out_l = read_reg(dev_handle, 0x2a, 1, true, printout);
+    t_out_h = read_reg(dev_handle, 0x2b, 1, true, printout);
+    t_out = ((*t_out_h << 8) | *t_out_l);
+    ESP_LOGD("get_temp", "t_out is 0x%04x (unsigned) and 0x%04x (signed)", (uint16_t)t_out, t_out);
+
+    res_temp = (temps->t1_total - temps->t0_total) / (temps->t1_out - temps->t0_out) * (t_out - temps->t0_out) + temps->t0_total;
+    res_temp = (res_temp * 9/5) + 32;       // convert to fahrenheit
+    ESP_LOGI("get_temp", "Temp was calculated to be %0.2f ºF", res_temp);
+
     free(t_out_l);
     free(t_out_h);
 
-    free(msb);
     
 }
 
@@ -199,6 +208,7 @@ void app_main(void)
         ESP_ERROR_CHECK(heap_trace_init_standalone(trace_record, 100));
         ESP_ERROR_CHECK(heap_trace_start(HEAP_TRACE_ALL));
     #endif
+    calibration_temps *temps = (calibration_temps *) malloc(sizeof(calibration_temps));
 
     i2c_master_bus_handle_t i2c_mstr_handle;
     ESP_ERROR_CHECK(i2c_new_master_bus(&I2C_MSTR_CFG, &i2c_mstr_handle));
@@ -216,11 +226,12 @@ void app_main(void)
     read_reg(dev_handle, CTRL_REG3, 1, false, true);
     read_reg(dev_handle, AV_CONF, 1, false, true);
     get_status(dev_handle);
-    get_temp(dev_handle, false);
+    get_temp_calibration(dev_handle, temps, false);
+    get_temp(dev_handle, temps, false);
 
     while (1) {
         sleep(2);
-        get_temp(dev_handle, false);
+        get_temp(dev_handle, temps, false);
     }
 
     
