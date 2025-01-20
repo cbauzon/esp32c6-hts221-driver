@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 #include <string.h>
 #include "driver/i2c_master.h"
 #include "main.h"
@@ -134,9 +135,60 @@ sensor_status get_status(i2c_master_dev_handle_t dev_handle) {
     return res;
 }
 
-void get_temp(i2c_master_dev_handle_t dev_handle) {
-    uint8_t *T0;
-    read_reg(dev_handle, 0x32, 1, true, false);
+void get_temp(i2c_master_dev_handle_t dev_handle, bool printout) {
+    uint8_t *t0, *t0_out_l, *t0_out_h, 
+            *t1, *t1_out_l, *t1_out_h, 
+            *t_out_l, *t_out_h,
+            *msb;
+    float t0_total, t1_total, res_temp;
+    int16_t t0_out, t1_out, t_out;
+    
+
+    t0 = read_reg(dev_handle, 0x32, 1, true, printout);
+    t1 = read_reg(dev_handle, 0x33, 1, true, printout);
+    msb = read_reg(dev_handle, 0x35, 1, true, printout);
+
+    // y variables
+    t0_total = (float)(((*msb & 0x3) << 8) | *t0) / 8.0;
+    ESP_LOGD("get_temp", "t0_total is %0.3f", t0_total);
+
+    t1_total = (float)(((*msb & 0xC) << 6) | *t1) / 8.0;
+    ESP_LOGD("get_temp", "t1_total is %0.3f", t1_total);
+
+    // x variables
+    t0_out_l = read_reg(dev_handle, 0x3c, 1, true, printout);
+    t0_out_h = read_reg(dev_handle, 0x3d, 1, true, printout);
+    t0_out = (*t0_out_h << 8) | *t0_out_l;
+    ESP_LOGD("get_temp", "t0_out is 0x%04x", t0_out);
+
+    t1_out_l = read_reg(dev_handle, 0x3e, 1, true, printout);
+    t1_out_h = read_reg(dev_handle, 0x3f, 1, true, printout);
+    t1_out = (*t1_out_h << 8) | *t1_out_l;
+    ESP_LOGD("get_temp", "t1_out is 0x%04x", t1_out);
+
+    // get temp reading
+    t_out_l = read_reg(dev_handle, 0x2a, 1, true, printout);
+    t_out_h = read_reg(dev_handle, 0x2b, 1, true, printout);
+    t_out = ((*t_out_h << 8) | *t_out_l);
+    ESP_LOGD("get_temp", "t_out is 0x%04x (unsigned) and 0x%04x (signed)", (uint16_t)t_out, t_out);
+
+    res_temp = (t1_total - t0_total) / (t1_out - t0_out) * (t_out - t0_out) + t0_total;
+    res_temp = (res_temp * 9/5) + 32;
+    ESP_LOGI("get_temp", "Temp was calculated to be %0.2f degrees fahrenheit", res_temp);
+
+    free(t0);
+    free(t0_out_l);
+    free(t0_out_h);
+
+    free(t1);
+    free(t1_out_l);
+    free(t1_out_h);
+
+    free(t_out_l);
+    free(t_out_h);
+
+    free(msb);
+    
 }
 
 void app_main(void)
@@ -155,8 +207,8 @@ void app_main(void)
     ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_mstr_handle, &DEV_CFG, &dev_handle));
 
     who_am_i(dev_handle);
-    uint8_t write_vals[2] = {0x83, 0x81};
-    write_reg_multiple(dev_handle, CTRL_REG1, write_vals, 2);
+    // uint8_t write_vals[2] = {0x83, 0x81};
+    // write_reg_multiple(dev_handle, CTRL_REG1, write_vals, 2);
     write_reg(dev_handle, CTRL_REG1, 0x83);
     write_reg(dev_handle, CTRL_REG2, 0x80);
     read_reg(dev_handle, CTRL_REG1, 1, false, true);
@@ -164,6 +216,13 @@ void app_main(void)
     read_reg(dev_handle, CTRL_REG3, 1, false, true);
     read_reg(dev_handle, AV_CONF, 1, false, true);
     get_status(dev_handle);
+    get_temp(dev_handle, false);
+
+    while (1) {
+        sleep(2);
+        get_temp(dev_handle, false);
+    }
+
     
     #ifdef CONFIG_HEAP_TRACING_STANDALONE
         ESP_ERROR_CHECK(heap_trace_stop());
