@@ -20,16 +20,20 @@ void print_back(uint8_t addr, uint8_t data, rw read_or_write) {
     }
 }
 
-uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads, uint8_t alloc) {
+uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads, bool alloc, bool print) {
     esp_err_t check;
 
     uint8_t *data_rd = (uint8_t *) malloc(num_reads*sizeof(uint8_t));
     check = i2c_master_transmit_receive(dev_handle, &subaddr, sizeof(uint8_t), data_rd, num_reads*sizeof(uint8_t), -1);
 
     if (check == ESP_OK) {
-        for (uint8_t i = 0; i<num_reads; ++i) {
-            print_back(subaddr, data_rd[i], READ);
+
+        if (print) {
+            for (uint8_t i = 0; i<num_reads; ++i) {
+                print_back(subaddr, data_rd[i], READ);
+            }
         }
+        
         // printf("read_reg return: %p\n", data_rd);
 
         if (alloc) return data_rd;
@@ -46,7 +50,7 @@ uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t 
 }
 
 void who_am_i(i2c_master_dev_handle_t dev_handle) {
-    read_reg(dev_handle, WHO_AM_I, 1, 0);
+    read_reg(dev_handle, WHO_AM_I, 1, false, true);
 }
 
 void write_reg(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_t write_val) {
@@ -93,9 +97,9 @@ void write_reg_multiple(i2c_master_dev_handle_t i2c_dev, uint8_t subaddr, uint8_
         
 }
 
-status get_status(i2c_master_dev_handle_t dev_handle) {
-    status res;
-    uint8_t *data_rd = read_reg(dev_handle, STATUS_REG, 1, 1);
+sensor_status get_status(i2c_master_dev_handle_t dev_handle) {
+    sensor_status res;
+    uint8_t *data_rd = read_reg(dev_handle, STATUS_REG, 1, true, false);
     if (data_rd != NULL) {
         ESP_LOGD("get_status", "Status data addr: %p, %02x\n", data_rd, *data_rd);
     } else {
@@ -128,7 +132,11 @@ status get_status(i2c_master_dev_handle_t dev_handle) {
     free(data_rd);
     free(str_out);
     return res;
+}
 
+void get_temp(i2c_master_dev_handle_t dev_handle) {
+    uint8_t *T0;
+    read_reg(dev_handle, 0x32, 1, true, false);
 }
 
 void app_main(void)
@@ -150,9 +158,11 @@ void app_main(void)
     uint8_t write_vals[2] = {0x83, 0x81};
     write_reg_multiple(dev_handle, CTRL_REG1, write_vals, 2);
     write_reg(dev_handle, CTRL_REG1, 0x83);
-    read_reg(dev_handle, CTRL_REG1, 1, 0);
-    read_reg(dev_handle, CTRL_REG2, 1, 0);
-    read_reg(dev_handle, CTRL_REG3, 1, 0);
+    write_reg(dev_handle, CTRL_REG2, 0x80);
+    read_reg(dev_handle, CTRL_REG1, 1, false, true);
+    read_reg(dev_handle, CTRL_REG2, 1, false, true);
+    read_reg(dev_handle, CTRL_REG3, 1, false, true);
+    read_reg(dev_handle, AV_CONF, 1, false, true);
     get_status(dev_handle);
     
     #ifdef CONFIG_HEAP_TRACING_STANDALONE
