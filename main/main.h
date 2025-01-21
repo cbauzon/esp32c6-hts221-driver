@@ -53,6 +53,11 @@ typedef struct calibration_temps {
     int16_t t0_out, t1_out, res;
 } calibration_temps;
 
+typedef struct calibration_hums {
+    float h0_total, h1_total;
+    int16_t h0_out, h1_out;
+} calibration_hums;
+
 void print_back(uint8_t addr, uint8_t data, rw read_or_write);
 uint8_t * read_reg(i2c_master_dev_handle_t dev_handle, uint8_t subaddr, uint8_t num_reads, bool alloc, bool print);
 void who_am_i(i2c_master_dev_handle_t dev_handle);
